@@ -1,0 +1,61 @@
+-- 3.3. Criar tabelas para armazenar os dados cadastrais das operadoras e as demonstrações contábeis
+
+CREATE TABLE operadoras (
+    id SERIAL PRIMARY KEY,
+    registro_ans VARCHAR(20) UNIQUE NOT NULL,
+    cnpj VARCHAR(20) NOT NULL,
+    razao_social VARCHAR(255) NOT NULL,
+    nome_fantasia VARCHAR(255),
+    modalidade VARCHAR(50),
+    uf CHAR(2),
+    data_registro DATE,
+    situacao VARCHAR(50),
+    data_situacao DATE,
+    CONSTRAINT cnpj_unique UNIQUE (cnpj)
+);
+
+CREATE TABLE demonstracoes_contabeis (
+    id SERIAL PRIMARY KEY,
+    registro_ans VARCHAR(20) REFERENCES operadoras(registro_ans) ON DELETE CASCADE,
+    ano INT NOT NULL,
+    trimestre INT NOT NULL,
+    receita_total NUMERIC(15, 2),
+    despesas_assistencia_medico_hospitalar NUMERIC(15, 2),
+    CONSTRAINT ano_trimestre_unique UNIQUE (registro_ans, ano, trimestre)
+);
+
+-- 3.4. Importar os dados dos arquivos CSV para as tabelas criadas
+
+-- Ajuste o caminho do arquivo conforme necessário
+COPY operadoras(registro_ans, cnpj, razao_social, nome_fantasia, modalidade, uf, data_registro, situacao, data_situacao)
+FROM '/caminho/para/operadoras_ativas.csv'
+DELIMITER ';'
+CSV HEADER;
+
+COPY demonstracoes_contabeis(registro_ans, ano, trimestre, receita_total, despesas_assistencia_medico_hospitalar)
+FROM '/caminho/para/demonstracoes_contabeis.csv'
+DELIMITER ';'
+CSV HEADER;
+
+-- 3.5. Query analítica: Top 10 operadoras com maiores despesas no último trimestre
+SELECT o.nome_fantasia, d.ano, d.trimestre, SUM(d.despesas_assistencia_medico_hospitalar) AS total_despesas
+FROM demonstracoes_contabeis d
+JOIN operadoras o ON d.registro_ans = o.registro_ans
+WHERE (d.ano, d.trimestre) = (
+    SELECT ano, trimestre 
+    FROM demonstracoes_contabeis
+    ORDER BY ano DESC, trimestre DESC 
+    LIMIT 1
+)
+GROUP BY o.nome_fantasia, d.ano, d.trimestre
+ORDER BY total_despesas DESC
+LIMIT 10;
+
+-- 3.5. Query analítica: Top 10 operadoras com maiores despesas no último ano
+SELECT o.nome_fantasia, d.ano, SUM(d.despesas_assistencia_medico_hospitalar) AS total_despesas
+FROM demonstracoes_contabeis d
+JOIN operadoras o ON d.registro_ans = o.registro_ans
+WHERE d.ano = (SELECT MAX(ano) FROM demonstracoes_contabeis)
+GROUP BY o.nome_fantasia, d.ano
+ORDER BY total_despesas DESC
+LIMIT 10;
